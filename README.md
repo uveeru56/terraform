@@ -10,3 +10,5 @@
 3. terraform plan
 
 4. terraform apply
+
+5. terraform destroy
