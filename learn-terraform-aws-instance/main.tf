@@ -49,22 +49,49 @@ resource "aws_internet_gateway" "terraform_igw" {
   }
 }
 
-# Route Table
-resource "aws_route_table" "terraform_rt" {
+# public subnet Route Table
+resource "aws_route_table" "terraform_public_rt" {
   vpc_id = aws_vpc.terraform_vpc.id
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.terraform_igw.id
   }
   tags = {
-    Name = "terraform-rt"
+    Name = "terraform-public-rt"
   }
 }
 
 # Associate Route Table to Subnet
 resource "aws_route_table_association" "rt_assoc" {
   subnet_id      = aws_subnet.terraform_public_subnet.id
-  route_table_id = aws_route_table.terraform_rt.id
+  route_table_id = aws_route_table.terraform_public_rt.id
+}
+
+# Private Subnet Route Table
+resource "aws_route_table" "terraform_private_rt" {
+  vpc_id = aws_vpc.terraform_vpc.id
+  #route {
+  #  cidr_block = "0.0.0.0/0"
+  #}
+  tags = {
+    Name = "terraform-private-rt"
+  }
+}
+# Associate Route Table to Subnet
+resource "aws_route_table_association" "private_rt_assoc" {
+  subnet_id      = aws_subnet.terraform_private_subnet.id
+  route_table_id = aws_route_table.terraform_private_rt.id
+}
+
+#VPC Endpoints - S3 Gateway Endpoint
+resource "aws_vpc_endpoint" "s3-access" {
+  vpc_id            = aws_vpc.terraform_vpc.id
+  service_name      = "com.amazonaws.us-east-1.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.terraform_private_rt.id]
+  tags = {
+    Name = "gateway-s3-access"
+  }
 }
 
 # Security Group
@@ -221,7 +248,7 @@ resource "aws_network_acl_association" "subnet_assoc" {
 
 
 # EC2 Instance
-resource "aws_instance" "terraform_ec2" {
+resource "aws_instance" "terraform_webserver" {
   ami                         = "ami-00a929b66ed6e0de6"
   instance_type               = "t2.micro"
   subnet_id                   = aws_subnet.terraform_public_subnet.id
@@ -238,6 +265,19 @@ resource "aws_instance" "terraform_ec2" {
               EOF
 
   tags = {
-    Name = "terraform-ec2"
+    Name = "terraform-webserver"
+  }
+}
+
+resource "aws_instance" "terraform_appserver" {
+  ami                    = "ami-00a929b66ed6e0de6"
+  instance_type          = "t2.micro"
+  subnet_id              = aws_subnet.terraform_private_subnet.id
+  vpc_security_group_ids = [aws_security_group.terraform_sg.id]
+  key_name               = "jomo-key"
+  # Use the existing IAM instance profile
+  iam_instance_profile = "s3-access"
+  tags = {
+    Name = "terraform-appserver"
   }
 }
